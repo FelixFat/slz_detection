@@ -1,0 +1,7 @@
+python3>=3.8.10
+numpy
+matplotlib
+opencv_python
+tensorflow
+segmentation_models
+albumentations

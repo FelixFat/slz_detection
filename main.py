@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from tensorflow import keras
 import segmentation_models as sm
 
-from train import dataset, viz
+from train import dataset, aug
 
 
 BACKBONE = 'efficientnetb3'
@@ -22,44 +22,41 @@ EPOCHS = 40
 #    'pedestrian', 'bicyclist', 'unlabelled'
 #    ]
 
-# https://drive.google.com/file/d/0B0d9ZiqAgFkiOHR1NTJhWVJMNEU/view?usp=sharing
 PATHS = {
-    'train_images' : './sample-dataset/images_prepped_train/',
-    'train_masks' : './sample-dataset/annotations_prepped_train/',
-    'test_images' : './sample-dataset/images_prepped_test/',
-    'test_masks' : './sample-dataset/annotations_prepped_test/'
+    'x_train' : './CamVid/train/',
+    'y_train' : './CamVid/trainannot/',
+    'x_val'   : './CamVid/val/',
+    'y_val'   : './CamVid/valannot/',
+    'x_test'  : './CamVid/test/',
+    'y_test'  : './CamVid/testannot/'
     }
 
 
 def load_data():
-    #train_ds = dataset.Dataset(PATHS['train_images'], PATHS['train_masks'], classes=CLASSES)
-    #test_ds = dataset.Dataset(PATHS['train_images'], PATHS['train_masks'], classes=CLASSES)
-    
-    #train_dl = dataset.Dataloder(train_ds, batch_size=BATCH_SIZE, shuffle=True)
-    #test_dl = dataset.Dataloder(test_ds, batch_size=BATCH_SIZE, shuffle=True)
+    x_train = dataset.read_dataset_dir(PATHS['x_train'], flag=0)
+    y_train = dataset.read_dataset_dir(PATHS['y_train'], flag=1)
 
-    x_train = dataset.read_dataset_dir(PATHS['train_images'], flag=0)
-    y_train = dataset.read_dataset_dir(PATHS['train_masks'], flag=1)
+    x_val = dataset.read_dataset_dir(PATHS['x_val'], flag=0)
+    y_val = dataset.read_dataset_dir(PATHS['y_val'], flag=1)
 
-    x_test = dataset.read_dataset_dir(PATHS['test_images'], flag=0)
-    y_test = dataset.read_dataset_dir(PATHS['test_masks'], flag=1)
-
-    return x_train, y_train, x_test, y_test
+    return x_train, y_train, x_val, y_val
 
 
 def load_dataset():
-    train_ds = dataset.Dataset(PATHS['train_images'], PATHS['train_masks'], classes=CLASSES)
-    test_ds = dataset.Dataset(PATHS['train_images'], PATHS['train_masks'], classes=CLASSES)
+    train_ds = dataset.Dataset(PATHS['x_train'], PATHS['y_train'], classes=CLASSES)
+    val_ds = dataset.Dataset(PATHS['x_val'], PATHS['y_val'], classes=CLASSES)
     
     train_dl = dataset.Dataloder(train_ds, batch_size=BATCH_SIZE, shuffle=True)
-    test_dl = dataset.Dataloder(test_ds, batch_size=1, shuffle=True)
+    val_dl = dataset.Dataloder(val_ds, batch_size=1, shuffle=True)
 
-    return train_dl, test_dl
+    return train_dl, val_dl
 
 
 def main():
-    x_train, y_train, x_test, y_test = load_data()
-    train_dataloader, valid_dataloader = load_dataset()
+    #x_train, y_train, x_val, y_val = load_data()
+    #train_dataloader, valid_dataloader = load_dataset()
+
+    preprocess_input = sm.get_preprocessing(BACKBONE)
 
     # define network parameters
     n_classes = 1 if len(CLASSES) == 1 else (len(CLASSES) + 1)  # case for binary and multiclass segmentation
@@ -85,6 +82,27 @@ def main():
     # compile keras model with defined optimozer, loss and metrics
     model.compile(optim, total_loss, metrics)
 
+    # Dataset for train images
+    train_dataset = dataset.Dataset(
+        PATHS['x_train'], 
+        PATHS['y_train'], 
+        classes=CLASSES, 
+        augmentation=aug.get_training_augmentation(),
+        preprocessing=aug.get_preprocessing(preprocess_input),
+    )
+
+    # Dataset for validation images
+    valid_dataset = dataset.Dataset(
+        PATHS['x_val'], 
+        PATHS['y_val'], 
+        classes=CLASSES, 
+        augmentation=aug.get_validation_augmentation(),
+        preprocessing=aug.get_preprocessing(preprocess_input),
+    )
+
+    train_dataloader = dataset.Dataloder(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    valid_dataloader = dataset.Dataloder(valid_dataset, batch_size=1, shuffle=False)
+
     # define callbacks for learning rate scheduling and best checkpoints saving
     callbacks = [
         keras.callbacks.ModelCheckpoint('./best_model.h5', save_weights_only=True, save_best_only=True, mode='min'),
@@ -100,6 +118,26 @@ def main():
         validation_data=valid_dataloader, 
         validation_steps=len(valid_dataloader),
     )
+
+    # Plot training & validation iou_score values
+    plt.figure(figsize=(30, 5))
+    plt.subplot(121)
+    plt.plot(history.history['iou_score'])
+    plt.plot(history.history['val_iou_score'])
+    plt.title('Model iou_score')
+    plt.ylabel('iou_score')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+
+    # Plot training & validation loss values
+    plt.subplot(122)
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
 
 
 if __name__ == '__main__':
