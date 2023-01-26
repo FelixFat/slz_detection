@@ -16,12 +16,6 @@ CLASSES = ['car', 'pedestrian']
 LR = 0.0001
 EPOCHS = 40
 
-#CLASSES = [
-#    'sky', 'building', 'pole', 'road', 'pavement',
-#    'tree', 'signsymbol', 'fence', 'car',
-#    'pedestrian', 'bicyclist', 'unlabelled'
-#    ]
-
 PATHS = {
     'x_train' : './CamVid/train/',
     'y_train' : './CamVid/trainannot/',
@@ -82,61 +76,37 @@ def main():
     # compile keras model with defined optimozer, loss and metrics
     model.compile(optim, total_loss, metrics)
 
+    # load trained model
+    model.load_weights('best_model.h5') 
+
     # Dataset for train images
-    train_dataset = dataset.Dataset(
-        PATHS['x_train'], 
-        PATHS['y_train'], 
+    test_dataset = dataset.Dataset(
+        PATHS['x_test'], 
+        PATHS['y_test'], 
         classes=CLASSES, 
         augmentation=aug.get_training_augmentation(),
         preprocessing=aug.get_preprocessing(preprocess_input),
     )
+    test_dataloader = dataset.Dataloder(test_dataset, batch_size=1, shuffle=False)
 
-    # Dataset for validation images
-    valid_dataset = dataset.Dataset(
-        PATHS['x_val'], 
-        PATHS['y_val'], 
-        classes=CLASSES, 
-        augmentation=aug.get_validation_augmentation(),
-        preprocessing=aug.get_preprocessing(preprocess_input),
-    )
+    scores = model.evaluate(test_dataloader)
 
-    train_dataloader = dataset.Dataloder(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    valid_dataloader = dataset.Dataloder(valid_dataset, batch_size=1, shuffle=False)
+    print("Loss: {:.5}".format(scores[0]))
+    for metric, value in zip(metrics, scores[1:]):
+        print("mean {}: {:.5}".format(metric.__name__, value))
+    
+    id = np.random.choice(np.arange(len(test_dataset)))
 
-    # define callbacks for learning rate scheduling and best checkpoints saving
-    callbacks = [
-        keras.callbacks.ModelCheckpoint('./best_model.h5', save_weights_only=True, save_best_only=True, mode='min'),
-        keras.callbacks.ReduceLROnPlateau(),
-    ]
+    image, gt_mask = test_dataset[id]
+    image = np.expand_dims(image, axis=0)
+    pr_mask = model.predict(image)
 
-    # train model
-    history = model.fit(
-        train_dataloader, 
-        steps_per_epoch=len(train_dataloader), 
-        epochs=EPOCHS, 
-        callbacks=callbacks, 
-        validation_data=valid_dataloader, 
-        validation_steps=len(valid_dataloader),
-    )
-
-    # Plot training & validation iou_score values
-    plt.figure(figsize=(30, 5))
-    plt.subplot(121)
-    plt.plot(history.history['iou_score'])
-    plt.plot(history.history['val_iou_score'])
-    plt.title('Model iou_score')
-    plt.ylabel('iou_score')
-    plt.xlabel('Epoch')
-    plt.legend(['Train', 'Test'], loc='upper left')
-
-    # Plot training & validation loss values
-    plt.subplot(122)
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('Model loss')
-    plt.ylabel('Loss')
-    plt.xlabel('Epoch')
-    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.subplot(131)
+    plt.imshow(image[0,:,:,:])
+    plt.subplot(132)
+    plt.imshow(gt_mask)
+    plt.subplot(133)
+    plt.imshow(pr_mask[0,:,:,:])
     plt.show()
 
 

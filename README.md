@@ -2,3 +2,4 @@
 
 Trial dataset CamVid taken from [SegNet-Tutorial](https://github.com/alexgkendall/SegNet-Tutorial.git).
 
+![Train result](include/CamVid_1.png)
