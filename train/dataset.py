@@ -57,11 +57,11 @@ def read_dataset_dir(dir_path, shape=None, norm=True, flag=0):
         img_dataset = np.array([read_img_binary(img, shape, norm) for img in image_paths])
 
     return img_dataset
+    
 
-
+# classes for data loading and preprocessing
 class Dataset:
-    """
-    Create dataset from imgages
+    """CamVid Dataset. Read images, apply augmentation and preprocessing transformations.
     
     Args:
         images_dir (str): path to images folder
@@ -74,16 +74,13 @@ class Dataset:
     
     """
     
-    CLASSES = [
-        'sky', 'building', 'pole', 'road', 'pavement',
-        'tree', 'signsymbol', 'fence', 'car',
-        'pedestrian', 'bicyclist', 'unlabelled'
-        ]
+    _DATASET_CLASSES = {}
     
     def __init__(
             self, 
             images_dir, 
-            masks_dir, 
+            masks_dir,
+            all_classes,
             classes=None, 
             augmentation=None, 
             preprocessing=None,
@@ -92,9 +89,8 @@ class Dataset:
         self.images_fps = [os.path.join(images_dir, image_id) for image_id in self.ids]
         self.masks_fps = [os.path.join(masks_dir, image_id) for image_id in self.ids]
         
-        # convert str names to class values on masks
-        #self.class_values = {key : val for val, key in enumerate(classes)}
-        self.class_values = [self.CLASSES.index(cls.lower()) for cls in classes]
+        self._DATASET_CLASSES = all_classes
+        self.class_values = [self._DATASET_CLASSES[cls] for cls in classes]
         
         self.augmentation = augmentation
         self.preprocessing = preprocessing
@@ -104,10 +100,12 @@ class Dataset:
         # read data
         image = cv2.imread(self.images_fps[i])
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        mask = cv2.imread(self.masks_fps[i], 0)
+        mask = cv2.imread(self.masks_fps[i], cv2.IMREAD_GRAYSCALE)
+
+        image = cv2.resize(image, (384, 384))
+        mask = cv2.resize(mask, (384, 384))
         
         # extract certain classes from mask (e.g. cars)
-        #masks = [(mask == v) for v in self.class_values.values()]
         masks = [(mask == v) for v in self.class_values]
         mask = np.stack(masks, axis=-1).astype('float')
         
@@ -130,10 +128,10 @@ class Dataset:
         
     def __len__(self):
         return len(self.ids)
-
+    
+    
 class Dataloder(keras.utils.Sequence):
-    """
-    Load data from dataset and form batches
+    """Load data from dataset and form batches
     
     Args:
         dataset: instance of Dataset class for image loading and preprocessing.
@@ -154,7 +152,9 @@ class Dataloder(keras.utils.Sequence):
         # collect batch data
         start = i * self.batch_size
         stop = (i + 1) * self.batch_size
-        data = [self.dataset[i] for i in range(start, stop)]
+        data = []
+        for j in range(start, stop):
+            data.append(self.dataset[j])
         
         # transpose list of lists
         batch = [np.stack(samples, axis=0) for samples in zip(*data)]
@@ -163,12 +163,10 @@ class Dataloder(keras.utils.Sequence):
     
     def __len__(self):
         """Denotes the number of batches per epoch"""
-
         return len(self.indexes) // self.batch_size
     
     def on_epoch_end(self):
         """Callback function to shuffle indexes each epoch"""
-
         if self.shuffle:
-            self.indexes = np.random.permutation(self.indexes) 
+            self.indexes = np.random.permutation(self.indexes)   
 

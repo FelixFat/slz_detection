@@ -7,12 +7,13 @@ def round_clip_0_1(x, **kwargs):
 # define heavy augmentations
 def get_training_augmentation():
     train_transform = [
+
         A.HorizontalFlip(p=0.5),
 
         A.ShiftScaleRotate(scale_limit=0.5, rotate_limit=0, shift_limit=0.1, p=1, border_mode=0),
 
-        A.PadIfNeeded(min_height=320, min_width=320, always_apply=True, border_mode=0),
-        A.RandomCrop(height=320, width=320, always_apply=True),
+        A.PadIfNeeded(min_height=384, min_width=384, always_apply=True, border_mode=0),
+        A.RandomCrop(height=384, width=384, always_apply=True),
 
         A.IAAAdditiveGaussianNoise(p=0.2),
         A.IAAPerspective(p=0.5),
@@ -48,10 +49,9 @@ def get_training_augmentation():
 
 
 def get_validation_augmentation():
-    """Add paddings to make image shape divisible by 32"""
-    
+    """Add paddings to make image shape divisible by 48"""
     test_transform = [
-        A.PadIfNeeded(384, 480)
+        A.PadIfNeeded(384, 384)
     ]
     return A.Compose(test_transform)
 
@@ -70,4 +70,3 @@ def get_preprocessing(preprocessing_fn):
         A.Lambda(image=preprocessing_fn),
     ]
     return A.Compose(_transform)
-

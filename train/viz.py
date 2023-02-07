@@ -6,9 +6,11 @@ def visualize(**images):
     """PLot images in one row"""
 
     n = len(images)
-    plt.figure(figsize=(16, 5))
+    window_size = (16, 5 * (1 + n // 5))
+
+    plt.figure(figsize=window_size)
     for i, (name, image) in enumerate(images.items()):
-        plt.subplot(1, n, i + 1)
+        plt.subplot(1 * (n // 5), n, i + 1)
         plt.xticks([])
         plt.yticks([])
         plt.title(' '.join(name.split('_')).title())
